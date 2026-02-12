@@ -10,15 +10,14 @@ use Symfony\Component\HttpFoundation\Response;
 class AntiScrapingProtection
 {
     /**
-     * Known scraper user agents
+     * Known scraper user agents (only aggressive scrapers)
      */
     protected array $blockedAgents = [
-        'httrack', 'wget', 'curl', 'scrapy', 'python-requests',
-        'go-http-client', 'java/', 'libwww', 'lwp-trivial',
-        'sitesucker', 'webcopier', 'webzip', 'offline',
+        'httrack', 'scrapy', 'python-requests',
+        'go-http-client', 'libwww', 'lwp-trivial',
+        'sitesucker', 'webcopier', 'webzip',
         'teleport', 'webcapture', 'webstripper', 'sitesnagger',
         'blackwidow', 'pavuk', 'prowebwalker', 'netspider',
-        'copier', 'collector', 'grabber', 'download', 'extractor',
     ];
 
     /**
@@ -46,7 +45,7 @@ class AntiScrapingProtection
         $ip = $request->ip();
         $ua = strtolower($request->userAgent() ?? '');
 
-        // 1. Check if IP is temporarily blocked (FIRST — before any counter updates)
+        // 1. Check if IP is temporarily blocked
         if (Cache::get('blocked_' . md5($ip))) {
             return response('Access temporarily blocked.', 429);
         }
@@ -58,42 +57,35 @@ class AntiScrapingProtection
             }
         }
 
-        // 3. Block empty user agents (scrapers often don't set UA)
-        if (empty($ua) || strlen($ua) < 10) {
-            return response('Access Denied', 403);
-        }
-
-        // 4. Rate Limiting: Max 60 requests per minute per IP
+        // 3. Rate Limiting: Max 120 requests per minute per IP
         $rateLimitKey = 'rate_limit_' . md5($ip);
         $requestCount = Cache::get($rateLimitKey, 0);
         
-        if ($requestCount >= 60) {
+        if ($requestCount >= 120) {
             return response('Too Many Requests. Please slow down.', 429);
         }
         
-        Cache::put($rateLimitKey, $requestCount + 1, 60); // 60 seconds TTL
+        Cache::put($rateLimitKey, $requestCount + 1, 60);
 
-        // 5. Rapid request detection: Block if more than 10 requests in 5 seconds
+        // 4. Rapid request detection: Block if more than 30 requests in 5 seconds
         $rapidKey = 'rapid_' . md5($ip);
         $rapidCount = Cache::get($rapidKey, 0);
         
-        if ($rapidCount >= 10) {
-            // Temporarily block for 5 minutes
+        if ($rapidCount >= 30) {
             Cache::put('blocked_' . md5($ip), true, 300);
             return response('Access temporarily blocked due to suspicious activity.', 429);
         }
         
-        Cache::put($rapidKey, $rapidCount + 1, 5); // 5 seconds TTL
+        Cache::put($rapidKey, $rapidCount + 1, 5);
 
         // Get response
         $response = $next($request);
 
-        // 6. Add security headers
-        $response->headers->set('X-Frame-Options', 'DENY');
+        // 5. Add security headers
+        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-XSS-Protection', '1; mode=block');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Content-Security-Policy', "frame-ancestors 'none';");
 
         return $response;
     }
