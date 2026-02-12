@@ -13,7 +13,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\FilterBotTraffic::class,
-            \App\Http\Middleware\AntiScrapingProtection::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
