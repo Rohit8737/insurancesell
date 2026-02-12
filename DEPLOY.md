@@ -4,39 +4,52 @@
 - Hostinger shared hosting plan (Business or Premium) 
 - PHP 8.2+ enabled in hPanel
 - MySQL database created in hPanel
-- SSH access enabled
+- SSH access enabled (for running deploy script)
 
 ---
 
-## Step 1: Upload Files
+## Step 1: Create ZIP File
 
-### Option A: Git (Recommended)
-```bash
-# SSH into Hostinger
-ssh u123456789@your-server.hostinger.com
+On your local PC, create a ZIP of the project **without** these folders:
+- `vendor/` (will be installed on server)
+- `node_modules/` (not needed)
+- `.git/` (not needed on server)
+- `storage/logs/*.log` (not needed)
 
-# Navigate to web root
-cd public_html
-
-# Clone your repo
-git clone https://github.com/Rohit8737/insurancesell.git .
+### Quick ZIP Command (PowerShell):
+```powershell
+# Run this in the project folder
+Compress-Archive -Path .env.example, app, bootstrap, config, database, deploy.sh, DEPLOY.md, public, resources, routes, storage, artisan, composer.json, composer.lock, .htaccess, .user.ini -DestinationPath C:\Users\$env:USERNAME\Desktop\insurancesell.zip -Force
 ```
 
-### Option B: FTP Upload
-1. Zip the entire project folder (excluding `vendor/` and `node_modules/`)
-2. Upload the zip to Hostinger File Manager → `public_html/`
-3. Extract the zip
+Or manually: Select all files/folders **except** `vendor/`, `node_modules/`, `.git/` → Right click → "Send to Compressed (zipped) folder"
 
 ---
 
-## Step 2: Configure Domain Root
+## Step 2: Upload ZIP to Hostinger
+
+1. Login to **Hostinger hPanel**
+2. Go to **Files → File Manager**
+3. Navigate to `public_html/`
+4. Click **Upload** → Select `insurancesell.zip`
+5. Wait for upload to finish
+6. Right-click the ZIP → **Extract** → Extract to `public_html/`
+7. Make sure all files are directly inside `public_html/` (NOT inside a subfolder)
+
+> [!IMPORTANT]
+> Files should be at `public_html/app/`, `public_html/public/`, etc.
+> NOT at `public_html/insurancesell/app/` — if they're in a subfolder, move them up!
+
+---
+
+## Step 3: Configure Domain Root
 
 > [!IMPORTANT]
 > Hostinger serves from `public_html/`. Laravel's entry point is `public/index.php`.
-> You need to point the domain to `public_html/public/` or use the redirect method below.
+> You need to redirect all requests to the `public/` folder.
 
-### Method: Root .htaccess Redirect
-Create `public_html/.htaccess` (NOT inside `public/`):
+### Create Root .htaccess
+Create a NEW file `public_html/.htaccess` (NOT inside `public/`):
 
 ```apache
 <IfModule mod_rewrite.c>
@@ -45,9 +58,11 @@ Create `public_html/.htaccess` (NOT inside `public/`):
 </IfModule>
 ```
 
+You can create this via **File Manager → New File** in `public_html/`
+
 ---
 
-## Step 3: Create Database
+## Step 4: Create Database
 
 1. Go to **hPanel → Databases → MySQL Databases**
 2. Create a new database (e.g., `u123456789_insurance`)
@@ -55,17 +70,21 @@ Create `public_html/.htaccess` (NOT inside `public/`):
 
 ---
 
-## Step 4: Configure .env
+## Step 5: Configure .env
 
+### Via SSH:
 ```bash
-# Copy the example
+ssh u123456789@your-server.hostinger.com
+cd public_html
 cp .env.example .env
-
-# Edit with your details
 nano .env
 ```
 
-Update these values:
+### Or via File Manager:
+1. Copy `.env.example` → Rename copy to `.env`
+2. Click `.env` → **Edit**
+
+### Update these values:
 ```env
 APP_NAME=InsuranceSell
 APP_ENV=production
@@ -83,42 +102,47 @@ ADMIN_PASSWORD=YourSecurePassword123!
 
 ---
 
-## Step 5: Run Deploy Script
+## Step 6: Run Deploy Script via SSH
 
 ```bash
-# Make the script executable
-chmod +x deploy.sh
+# SSH into server
+ssh u123456789@your-server.hostinger.com
 
-# Run deployment
+# Go to project
+cd public_html
+
+# Make script executable & run
+chmod +x deploy.sh
 bash deploy.sh
 ```
 
 This will automatically:
-- ✅ Install Composer dependencies
+- ✅ Install Composer dependencies (`vendor/` folder)
 - ✅ Generate APP_KEY
-- ✅ Run all migrations
-- ✅ Seed the database (admin user, settings, all 50 posts, pages)
+- ✅ Run all database migrations
+- ✅ Seed database (admin user, 50 posts, 5 pages, settings)
 - ✅ Create storage symlink
+- ✅ Create upload directories (videos, images)
 - ✅ Build production cache
 - ✅ Set file permissions
 
 ---
 
-## Step 6: Verify
+## Step 7: Verify
 
 1. **Website:** Visit `https://yourdomain.com`
 2. **Admin Panel:** Visit `https://yourdomain.com/admin`
 3. **Login:** Use the email/password from your `.env`
-4. **SEO Check:** Visit `https://yourdomain.com/robots.txt` and `https://yourdomain.com/sitemap.xml`
+4. **SEO:** Visit `https://yourdomain.com/robots.txt` and `https://yourdomain.com/sitemap.xml`
 
 ---
 
-## Step 7: Configure AdSense
+## Step 8: Configure AdSense
 
 1. Login to admin panel → **AdSense Manager**
-2. Paste your AdSense ad codes in each slot
-3. Update `ads.txt` content with your publisher ID
-4. Go to **Site Settings** → Update site name, logo, and social links
+2. Set your AdSense Publisher ID
+3. Update `ads.txt` content
+4. Go to **Site Settings** → Configure ad slot codes (1-4), content ads, sticky ad
 
 ---
 
@@ -131,6 +155,7 @@ This will automatically:
 - [ ] Submit sitemap to Google Search Console
 - [ ] Enable Hostinger SSL (free Let's Encrypt)
 - [ ] Test all pages load correctly
+- [ ] Test video upload (250MB max) from admin panel
 - [ ] Verify admin panel is accessible
 
 ---
@@ -139,25 +164,42 @@ This will automatically:
 
 ### 500 Internal Server Error
 ```bash
-# Check permissions
 chmod -R 775 storage bootstrap/cache
-
-# Check logs
 tail -50 storage/logs/laravel.log
 ```
 
-### Storage Images Not Loading
+### Storage Images/Videos Not Loading
 ```bash
 php artisan storage:link
 ```
 
 ### Admin Panel Not Loading (404)
 ```bash
-# Clear and rebuild cache
 php artisan route:clear
 php artisan route:cache
+```
+
+### Video Upload Fails (Size Limit)
+The `.user.ini` file in `public/` sets PHP limits to 256MB. If it still fails:
+```bash
+# Check current PHP limits
+php -i | grep upload_max
+# If too low, edit .user.ini in public/ folder
 ```
 
 ### Database Connection Error
 - Verify DB credentials in `.env`
 - Hostinger uses `localhost` for DB_HOST (not 127.0.0.1)
+
+### Files in Wrong Folder
+All project files must be directly in `public_html/`:
+```
+public_html/
+├── app/
+├── public/
+├── routes/
+├── .env
+├── deploy.sh
+└── ...
+```
+NOT inside a subfolder like `public_html/insurancesell/`
